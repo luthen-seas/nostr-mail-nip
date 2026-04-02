@@ -18,12 +18,12 @@ protocol for email-like messaging over NOSTR using gift-wrapped encryption
 
 The protocol introduces six event kinds:
 
-- **Kind 1111** -- Mail message (unsigned rumor, gift-wrapped)
-- **Kind 1112** -- Mail receipt (delivery/read confirmation, gift-wrapped)
+- **Kind 1400** -- Mail message (unsigned rumor, gift-wrapped)
+- **Kind 1401** -- Mail receipt (delivery/read confirmation, gift-wrapped)
 - **Kind 10050** -- DM relay list (existing, from NIP-17)
 - **Kind 10097** -- Spam policy (anti-spam configuration)
 - **Kind 10099** -- Mailbox state (read/flag/folder sync)
-- **Kind 30015** -- Mail draft (encrypted, addressable)
+- **Kind 30016** -- Mail draft (encrypted, addressable)
 
 ## How to Review
 
@@ -51,7 +51,7 @@ Conformance test vectors are published at `test-vectors/`:
 
 | File | Contents |
 |------|----------|
-| `mail-event.json` | Kind 1111 rumor creation (7 vectors) |
+| `mail-event.json` | Kind 1400 rumor creation (7 vectors) |
 | `gift-wrap.json` | Seal and gift wrap structure |
 | `spam-tier.json` | Anti-spam tier evaluation |
 | `thread.json` | Threading and tree construction |
