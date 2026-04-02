@@ -15,7 +15,7 @@ This NIP extends the NOSTR gift-wrap messaging model (NIP-17, NIP-44, NIP-59)
 to support structured, email-like communication. It introduces kind 1400 mail
 messages with subject lines, typed recipients (To/CC/BCC), threaded
 conversations, encrypted file attachments via Blossom, and a tiered anti-spam
-system that combines social trust signals with proof-of-work and Cashu ecash
+system that combines social trust (contact list) with Cashu ecash
 micropayments.
 
 The protocol reuses the three-layer encryption model from NIP-59 (rumor, seal,
@@ -44,10 +44,9 @@ features required for email-like workflows:
   file metadata but does not define encrypted upload, multi-server redundancy,
   or inline image references.
 - **No anti-spam for cold contacts.** When the sender is not in the
-  recipient's contact list and has no NIP-05 identity, there is no protocol-
-  level mechanism to distinguish legitimate messages from spam. Relays can
-  rate-limit, but this is a blunt instrument that penalizes legitimate new
-  correspondents equally.
+  recipient's contact list, there is no protocol-level mechanism to distinguish
+  legitimate messages from spam. Relays can rate-limit, but this is a blunt
+  instrument that penalizes legitimate new correspondents equally.
 - **No mailbox state sync.** Read/unread status, folder assignments, and flags
   have no standard representation, making multi-device mail clients impossible
   without proprietary sync.
@@ -64,9 +63,8 @@ This NIP depends on the following specifications:
 | NIP | Name | Usage |
 |-----|------|-------|
 | [NIP-01](01.md) | Basic Protocol | Event structure, relay communication |
-| [NIP-05](05.md) | DNS Identifiers | Anti-spam tier 1 verification |
+| [NIP-05](05.md) | DNS Identifiers | Address resolution (user@domain.com to pubkey) |
 | [NIP-09](09.md) | Event Deletion | Requesting deletion of sent mail |
-| [NIP-13](13.md) | Proof of Work | Anti-spam tier 2 |
 | [NIP-17](17.md) | Private DMs | Base messaging model, kind 10050 relay list |
 | [NIP-42](42.md) | Authentication | Relay-enforced inbox access control |
 | [NIP-44](44.md) | Encrypted Payloads | Encryption at seal and wrap layers |
@@ -88,7 +86,7 @@ Additionally, the anti-spam mechanism references:
 
 | Kind | Name | Description | Behavior |
 |------|------|-------------|----------|
-| 15 | Mail Message | Unsigned rumor containing mail content | Regular (via gift wrap) |
+| 1400 | Mail Message | Unsigned rumor containing mail content | Regular (via gift wrap) |
 | 1401 | Mail Receipt | Delivery/read confirmation | Regular (via gift wrap) |
 | 10050 | DM Relay List | Inbox relay preferences (existing, NIP-17) | Replaceable |
 | 10097 | Spam Policy | Anti-spam configuration | Replaceable |
@@ -480,20 +478,27 @@ message's disposition.
 | Tier | Signal | Disposition | Description |
 |------|--------|-------------|-------------|
 | 0 | Contact | Inbox | Sender is in recipient's kind 3 follow list |
-| 1 | NIP-05 | Inbox | Sender has a verified NIP-05 identifier |
-| 2 | PoW | Inbox | Gift wrap has NIP-13 PoW >= policy threshold |
-| 3 | Cashu | Inbox | Message includes valid Cashu P2PK postage |
-| 4 | (Reserved) | -- | Reserved for future trust signals |
-| 5 | Unknown | Quarantine/Reject | No qualifying signal |
+| 1 | Cashu | Inbox | Message includes valid Cashu P2PK postage |
+| 2 | Unknown | Quarantine/Reject | No qualifying signal |
+
+The contact list (kind 3 follows) is the ONLY free-pass mechanism. NIP-05 is
+used exclusively for address resolution (mapping user@domain.com to a pubkey)
+and is NOT a trust signal -- a domain costs as little as $1 and provides no
+meaningful anti-spam guarantee. NIP-13 proof-of-work is likewise excluded from
+the tier model because GPU availability makes it exploitable at scale.
 
 Tier evaluation is ordered by priority: a sender who qualifies for tier 0
 (contact) is classified as tier 0 even if they also attached a Cashu token.
 This prevents unnecessary token redemption.
 
+L402 relay-level payment gating is orthogonal to this tier model and is at the
+relay operator's discretion. It is not part of the client-side spam evaluation.
+
 #### Cashu Postage Token
 
-When none of the free tiers (0, 1, 2) qualify, the sender MAY attach a Cashu
-ecash token as "postage" to gain inbox access.
+When the sender is not in the recipient's contact list (tier 0 does not
+qualify), the sender MAY attach a Cashu ecash token as "postage" to gain inbox
+access.
 
 The token MUST be serialized in NUT-00 V4 format in the `cashu` tag. The
 `cashu-mint` and `cashu-amount` tags provide metadata for quick evaluation
@@ -537,7 +542,7 @@ Performed during tier evaluation. Implementations MUST check:
 5. The P2PK lock target matches the recipient's compressed SEC1 pubkey.
 
 If structural validation passes, the message is tentatively classified as
-tier 3 and delivered to the inbox.
+tier 1 and delivered to the inbox.
 
 **Phase 2 -- Mint Validation (asynchronous):**
 
@@ -545,7 +550,7 @@ Performed after inbox delivery. The client SHOULD attempt to swap the token at
 the mint (`POST /v1/swap`) to verify the token is unspent and claim the funds.
 If the swap fails:
 
-- The message SHOULD be reclassified to tier 5 (quarantine).
+- The message SHOULD be reclassified to tier 2 (quarantine).
 - The client SHOULD display a warning that the postage token was invalid.
 - The client MUST NOT automatically delete the message.
 
@@ -564,18 +569,14 @@ preferences.
 | Tag | Format | Description |
 |-----|--------|-------------|
 | `contacts-free` | `["contacts-free", "true"\|"false"]` | Contacts bypass all checks (default: `"true"`) |
-| `nip05-free` | `["nip05-free", "true"\|"false"]` | NIP-05 senders bypass PoW/Cashu (default: `"true"`) |
-| `pow-min-bits` | `["pow-min-bits", "<n>"]` | Minimum NIP-13 difficulty bits (default: `"20"`) |
-| `cashu-min-sats` | `["cashu-min-sats", "<n>"]` | Minimum Cashu postage in sats (default: `"1"`) |
+| `cashu-min-sats` | `["cashu-min-sats", "<n>"]` | Minimum Cashu postage in sats (default: `"10"`) |
 | `accepted-mint` | `["accepted-mint", "<url>"]` | Accepted Cashu mint URL (repeatable) |
-| `unknown-action` | `["unknown-action", "quarantine"\|"reject"]` | Action for tier 5 (default: `"quarantine"`) |
+| `unknown-action` | `["unknown-action", "quarantine"\|"reject"]` | Action for tier 2 (default: `"quarantine"`) |
 
 If no kind 10097 event is published, clients SHOULD use the following defaults:
 
 - `contacts-free`: `true`
-- `nip05-free`: `true`
-- `pow-min-bits`: `20`
-- `cashu-min-sats`: `1`
+- `cashu-min-sats`: `10`
 - `accepted-mint`: (empty -- accept all mints)
 - `unknown-action`: `quarantine`
 
@@ -589,8 +590,6 @@ If no kind 10097 event is published, clients SHOULD use the following defaults:
   "kind": 10097,
   "tags": [
     ["contacts-free", "true"],
-    ["nip05-free", "true"],
-    ["pow-min-bits", "20"],
     ["cashu-min-sats", "10"],
     ["accepted-mint", "https://mint.minibits.cash"],
     ["accepted-mint", "https://mint.coinos.io"],
@@ -684,7 +683,7 @@ merged state.
 
 ### Mail Receipt (Kind 1401)
 
-A kind 16 event is an unsigned rumor (delivered via gift wrap) that confirms
+A kind 1401 event is an unsigned rumor (delivered via gift wrap) that confirms
 message delivery or read status.
 
 #### Tags
@@ -705,7 +704,7 @@ operation.
 
 ```json
 {
-  "kind": 1112,
+  "kind": 1401,
   "pubkey": "98b30d5bfd1e2e751d7a57e7a58e67e15b3f2e0a90f9f7e8e40f7f6e5d4c3b2a",
   "created_at": 1711850000,
   "tags": [
@@ -775,8 +774,8 @@ Step 2: Look up recipient relay preferences
 
 Step 3: Look up recipient's spam policy (optional)
   - Query Bob's kind 10097 event
-  - If PoW or Cashu is required and Alice is not in Bob's contacts,
-    attach the appropriate anti-spam signal
+  - If Alice is not in Bob's contacts, attach a Cashu P2PK postage
+    token meeting the recipient's cashu-min-sats threshold
 
 Step 4: For each recipient (Bob, Charlie) AND for Alice (self-copy):
   a. Serialize the rumor to JSON
@@ -822,16 +821,14 @@ Step 3: Validate the rumor
 
 Step 4: Evaluate anti-spam tier
   - Check if seal.pubkey is in Bob's kind 3 follow list (tier 0)
-  - Check if seal.pubkey has a valid NIP-05 (tier 1)
-  - Check gift wrap PoW bits against policy (tier 2)
-  - Check cashu tag for valid P2PK token (tier 3, structural only)
-  - If no tier qualifies, apply the unknown-action policy (tier 5)
+  - Check cashu tag for valid P2PK token >= threshold (tier 1, structural only)
+  - If no tier qualifies, apply the unknown-action policy (tier 2)
 
 Step 5: Process the message
   - Parse tags: subject, recipients, threading, attachments
   - Store in the appropriate folder based on tier evaluation
   - Update kind 10099 state if needed
-  - Optionally send a kind 16 delivery receipt
+  - Optionally send a kind 1401 delivery receipt
 ```
 
 ### Relay Behavior
@@ -846,7 +843,9 @@ Relays that support NOSTR Mail SHOULD implement the following:
   rate-limiting, relays SHOULD apply limits per sender-recipient pair (using
   the gift wrap's `p` tag as recipient) to prevent a single spammer from
   exhausting another user's rate limit quota.
-- Relays MAY require NIP-13 proof-of-work on kind 1059 events.
+- Relays MAY require proof-of-work or L402 payment at their own discretion
+  as a relay-level rate-limiting measure. This is independent of the client-
+  side anti-spam tier model.
 - Relays MUST NOT inspect, decrypt, or log the content of kind 1059 events.
 - Relays MUST store kind 10097, 10099, and 30016 events per their respective
   replaceable/addressable event semantics.
@@ -870,18 +869,18 @@ Clients implementing NOSTR Mail:
   kind 10002 (NIP-65).
 - Clients SHOULD publish a kind 10050 event listing preferred inbox relays.
 - Clients SHOULD publish a kind 10097 event declaring anti-spam preferences.
-- Clients SHOULD evaluate anti-spam tiers in priority order (0 through 5).
+- Clients SHOULD evaluate anti-spam tiers in priority order (0 through 2).
 - Clients SHOULD support markdown content type (`text/markdown`).
 - Clients SHOULD support encrypted file attachments via Blossom.
 - Clients SHOULD deduplicate received gift wraps by event ID.
 - Clients SHOULD support thread grouping and hierarchical display.
-- Clients MAY send kind 16 delivery and read receipts.
+- Clients MAY send kind 1401 delivery and read receipts.
 - Clients MAY support kind 30016 drafts.
 - Clients MUST sanitize HTML content before rendering. At minimum, clients
   MUST strip `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`,
   `<input>`, `<style>`, and all `on*` event handler attributes. Clients
   SHOULD use an allowlist-based sanitizer rather than a blocklist.
-- Clients MUST NOT sign the kind 1400 or kind 16 rumor events.
+- Clients MUST NOT sign the kind 1400 or kind 1401 rumor events.
 
 ### SMTP Bridge (Informational)
 
@@ -1130,12 +1129,12 @@ conformance.
 | ID | Test | Requirement |
 |----|------|-------------|
 | S01 | Contact sender classifies as tier 0 | Sender in kind 3 follow list |
-| S02 | NIP-05 sender classifies as tier 1 | Sender has valid NIP-05 |
-| S03 | Sufficient PoW classifies as tier 2 | Event PoW >= policy threshold |
-| S04 | Valid Cashu P2PK token classifies as tier 3 | Token amount >= threshold, P2PK locked |
-| S05 | No qualifying signal classifies as tier 5 | Unknown sender, no signals |
-| S06 | Tier evaluation uses highest-priority match | Contact + PoW yields tier 0, not tier 2 |
-| S07 | Bearer tokens (no P2PK) are rejected | Non-P2PK Cashu token yields tier 5 |
+| S02 | Valid Cashu P2PK token classifies as tier 1 | Token amount >= threshold, P2PK locked |
+| S03 | No qualifying signal classifies as tier 2 | Unknown sender, no payment |
+| S04 | Contact wins over Cashu | Contact + Cashu yields tier 0, not tier 1 |
+| S05 | Bearer tokens (no P2PK) are rejected | Non-P2PK Cashu token yields tier 2 |
+| S06 | Untrusted mint yields tier 2 | Cashu from non-accepted mint is rejected |
+| S07 | Cashu below threshold yields tier 2 | Amount < cashu-min-sats is rejected |
 
 ### Category 4: Mailbox State (7 tests)
 
