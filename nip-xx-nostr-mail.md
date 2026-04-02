@@ -12,7 +12,7 @@ over NOSTR with optional economic anti-spam via Cashu ecash micropayments.
 ## Abstract
 
 This NIP extends the NOSTR gift-wrap messaging model (NIP-17, NIP-44, NIP-59)
-to support structured, email-like communication. It introduces kind 15 mail
+to support structured, email-like communication. It introduces kind 1111 mail
 messages with subject lines, typed recipients (To/CC/BCC), threaded
 conversations, encrypted file attachments via Blossom, and a tiered anti-spam
 system that combines social trust signals with proof-of-work and Cashu ecash
@@ -20,7 +20,7 @@ micropayments.
 
 The protocol reuses the three-layer encryption model from NIP-59 (rumor, seal,
 gift wrap) without modification. All mail content is carried inside unsigned
-kind 15 rumors that are sealed and gift-wrapped before publication. Metadata
+kind 1111 rumors that are sealed and gift-wrapped before publication. Metadata
 visible to relays is limited to the recipient's public key on the outer gift
 wrap layer.
 
@@ -40,7 +40,7 @@ features required for email-like workflows:
 - **No threading model.** Conversations cannot be threaded into hierarchical
   reply chains. NIP-10 `e` tag conventions address short-note replies but do
   not define root-tracking for long-lived threads.
-- **No attachment standard.** File sharing via kind 15 (NIP-17) provides raw
+- **No attachment standard.** File sharing via kind 1111 (NIP-17) provides raw
   file metadata but does not define encrypted upload, multi-server redundancy,
   or inline image references.
 - **No anti-spam for cold contacts.** When the sender is not in the
@@ -89,20 +89,20 @@ Additionally, the anti-spam mechanism references:
 | Kind | Name | Description | Behavior |
 |------|------|-------------|----------|
 | 15 | Mail Message | Unsigned rumor containing mail content | Regular (via gift wrap) |
-| 16 | Mail Receipt | Delivery/read confirmation | Regular (via gift wrap) |
+| 1112 | Mail Receipt | Delivery/read confirmation | Regular (via gift wrap) |
 | 10050 | DM Relay List | Inbox relay preferences (existing, NIP-17) | Replaceable |
 | 10097 | Spam Policy | Anti-spam configuration | Replaceable |
 | 10099 | Mailbox State | Read/flag/folder state | Replaceable |
 | 30015 | Mail Draft | Encrypted draft messages | Addressable (by `d` tag) |
 
-Kind 15 and kind 16 events are never published directly. They exist only as
+Kind 1111 and kind 1112 events are never published directly. They exist only as
 unsigned rumors inside NIP-59 gift wraps (kind 1059). Kind 10097, 10099, and
 30015 events are published as standard signed NOSTR events encrypted to the
 author's own public key.
 
-### Mail Message (Kind 15)
+### Mail Message (Kind 1111)
 
-A kind 15 event is an unsigned rumor (per NIP-59) containing the mail message.
+A kind 1111 event is an unsigned rumor (per NIP-59) containing the mail message.
 The `sig` field MUST be empty or absent. The `pubkey` field MUST contain the
 sender's real public key.
 
@@ -157,7 +157,7 @@ for how BCC privacy is maintained at the gift-wrap layer.
 ["subject", <text>]
 ```
 
-Every kind 15 rumor MUST include exactly one `subject` tag. The subject text
+Every kind 1111 rumor MUST include exactly one `subject` tag. The subject text
 SHOULD be a short summary of the message (analogous to an email subject line).
 Implementations SHOULD limit subject lines to 256 UTF-8 characters.
 
@@ -255,7 +255,7 @@ MUST sanitize the HTML before rendering (see [Security Considerations](#security
 
 ```json
 {
-  "kind": 15,
+  "kind": 1111,
   "pubkey": "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748",
   "created_at": 1711843200,
   "tags": [
@@ -271,7 +271,7 @@ MUST sanitize the HTML before rendering (see [Security Considerations](#security
 
 ```json
 {
-  "kind": 15,
+  "kind": 1111,
   "pubkey": "98b30d5bfd1e2e751d7a57e7a58e67e15b3f2e0a90f9f7e8e40f7f6e5d4c3b2a",
   "created_at": 1711846800,
   "tags": [
@@ -289,7 +289,7 @@ MUST sanitize the HTML before rendering (see [Security Considerations](#security
 
 ```json
 {
-  "kind": 15,
+  "kind": 1111,
   "pubkey": "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748",
   "created_at": 1711843200,
   "tags": [
@@ -308,7 +308,7 @@ MUST sanitize the HTML before rendering (see [Security Considerations](#security
 
 ```json
 {
-  "kind": 15,
+  "kind": 1111,
   "pubkey": "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748",
   "created_at": 1711843200,
   "tags": [
@@ -328,7 +328,7 @@ MUST sanitize the HTML before rendering (see [Security Considerations](#security
 NOSTR Mail uses the three-layer NIP-59 gift wrap model without modification.
 The layers are:
 
-1. **Rumor (kind 15)** -- The unsigned mail message. Contains the sender's
+1. **Rumor (kind 1111)** -- The unsigned mail message. Contains the sender's
    real public key, all tags, and the message body. Not signed.
 2. **Seal (kind 13)** -- The rumor serialized to JSON and encrypted with
    NIP-44 using ECDH between the sender's private key and the recipient's
@@ -340,7 +340,7 @@ The layers are:
 
 #### Rumor Serialization
 
-When serializing a kind 15 rumor to JSON for NIP-44 encryption,
+When serializing a kind 1111 rumor to JSON for NIP-44 encryption,
 implementations MAY use any valid JSON serialization. JSON object key order is
 NOT significant. The recipient MUST parse the decrypted JSON string and
 extract fields by key name, not by position. Two implementations encrypting
@@ -375,7 +375,7 @@ even when wrapping the same rumor for multiple recipients.
 
 ### Recipients (To, CC, BCC)
 
-Recipient roles are encoded in the `p` tags of the kind 15 rumor.
+Recipient roles are encoded in the `p` tags of the kind 1111 rumor.
 
 #### To and CC
 
@@ -682,7 +682,7 @@ merged state.
 }
 ```
 
-### Mail Receipt (Kind 16)
+### Mail Receipt (Kind 1112)
 
 A kind 16 event is an unsigned rumor (delivered via gift wrap) that confirms
 message delivery or read status.
@@ -705,7 +705,7 @@ operation.
 
 ```json
 {
-  "kind": 16,
+  "kind": 1112,
   "pubkey": "98b30d5bfd1e2e751d7a57e7a58e67e15b3f2e0a90f9f7e8e40f7f6e5d4c3b2a",
   "created_at": 1711850000,
   "tags": [
@@ -762,7 +762,7 @@ SHOULD be omitted if privacy is a concern.
 ```
 Alice wants to send a mail message to Bob (to) and Charlie (cc):
 
-Step 1: Create the kind 15 rumor (unsigned)
+Step 1: Create the kind 1111 rumor (unsigned)
   - Set pubkey to Alice's real pubkey
   - Add p tags: ["p", bob, "", "to"], ["p", charlie, "", "cc"]
   - Add ["subject", "Meeting Notes"]
@@ -816,9 +816,9 @@ Step 2: Verify and decrypt the seal
   - rumor_json = NIP-44_decrypt(conversation_key, seal.content)
 
 Step 3: Validate the rumor
-  - Parse the kind 15 rumor
+  - Parse the kind 1111 rumor
   - Verify rumor.pubkey == seal.pubkey (sender consistency)
-  - Verify rumor.kind == 15
+  - Verify rumor.kind == 1111
 
 Step 4: Evaluate anti-spam tier
   - Check if seal.pubkey is in Bob's kind 3 follow list (tier 0)
@@ -858,14 +858,14 @@ Relays that support NOSTR Mail SHOULD implement the following:
 Clients implementing NOSTR Mail:
 
 - Clients MUST use NIP-44 version 2 for all encryption operations.
-- Clients MUST use NIP-59 gift wrapping for all kind 15 and kind 16 events.
+- Clients MUST use NIP-59 gift wrapping for all kind 1111 and kind 1112 events.
 - Clients MUST generate a new ephemeral keypair for each gift wrap.
 - Clients MUST randomize timestamps on seal and gift wrap layers using a
   CSPRNG with uniform distribution over [-172800, +172800].
 - Clients MUST create a self-addressed gift wrap copy of every sent message.
 - Clients MUST verify that rumor.pubkey matches seal.pubkey when unwrapping.
 - Clients MUST include at least one `p` tag and one `subject` tag in every
-  kind 15 rumor.
+  kind 1111 rumor.
 - Clients MUST look up recipient inbox relays via kind 10050, falling back to
   kind 10002 (NIP-65).
 - Clients SHOULD publish a kind 10050 event listing preferred inbox relays.
@@ -881,7 +881,7 @@ Clients implementing NOSTR Mail:
   MUST strip `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`,
   `<input>`, `<style>`, and all `on*` event handler attributes. Clients
   SHOULD use an allowlist-based sanitizer rather than a blocklist.
-- Clients MUST NOT sign the kind 15 or kind 16 rumor events.
+- Clients MUST NOT sign the kind 1111 or kind 16 rumor events.
 
 ### SMTP Bridge (Informational)
 
@@ -894,7 +894,7 @@ bridge operates as both an SMTP server (receiving email) and an SMTP client
 #### Inbound (SMTP to NOSTR)
 
 The bridge receives email via SMTP, maps the sender to a NOSTR pubkey (via
-NIP-05 reverse lookup or a local mapping table), constructs a kind 15 rumor
+NIP-05 reverse lookup or a local mapping table), constructs a kind 1111 rumor
 with appropriate tags, and gift-wraps it for the NOSTR recipient.
 
 #### Outbound (NOSTR to SMTP)
@@ -915,7 +915,7 @@ attachments.
 
 Test vectors are published at:
 
-- `impl/test-vectors/mail-event.json` -- Kind 15 rumor creation vectors
+- `impl/test-vectors/mail-event.json` -- Kind 1111 rumor creation vectors
 - `impl/test-vectors/gift-wrap.json` -- Seal and gift wrap structure vectors
 - `impl/test-vectors/spam-tier.json` -- Anti-spam tier evaluation vectors
 - `impl/test-vectors/thread.json` -- Threading and tree construction vectors
@@ -935,10 +935,10 @@ The following keys are used across all test vectors:
 
 Alice sends "Hi Bob, how are you?" to Bob:
 
-**Layer 1 -- Rumor (kind 15, unsigned):**
+**Layer 1 -- Rumor (kind 1111, unsigned):**
 ```json
 {
-  "kind": 15,
+  "kind": 1111,
   "pubkey": "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748",
   "created_at": 1711843200,
   "tags": [
@@ -1059,12 +1059,12 @@ limit, implementations SHOULD warn the user.
 ## Backward Compatibility
 
 - This NIP does NOT affect existing NIP-17 direct messages. Kind 14 (DM) and
-  kind 15 (mail) are distinct event kinds with different semantics.
-- Kind 15 and kind 16 events are always gift-wrapped as kind 1059 events.
+  kind 1111 (mail) are distinct event kinds with different semantics.
+- Kind 1111 and kind 1112 events are always gift-wrapped as kind 1059 events.
   Existing relays that support kind 1059 (for NIP-17 DMs) will store and
   serve NOSTR Mail events without modification.
 - Clients that do not implement this NIP will see kind 1059 events but, upon
-  decrypting the inner rumor, will encounter kind 15 and can safely ignore it
+  decrypting the inner rumor, will encounter kind 1111 and can safely ignore it
   as an unrecognized kind.
 - Kind 10097 (spam policy), 10099 (mailbox state), and 30015 (drafts) are new
   event kinds that do not conflict with any existing kinds.
@@ -1097,7 +1097,7 @@ conformance.
 
 | ID | Test | Requirement |
 |----|------|-------------|
-| E01 | Kind 15 rumor has correct structure | `kind: 15`, `pubkey` set, `tags` array, `content` string |
+| E01 | Kind 1111 rumor has correct structure | `kind: 1111`, `pubkey` set, `tags` array, `content` string |
 | E02 | Rumor has no valid signature | `sig` is empty or absent |
 | E03 | Recipient `p` tags include role marker | `["p", pubkey, relay, "to"/"cc"]` |
 | E04 | Subject tag is present | `["subject", "..."]` |
@@ -1190,7 +1190,7 @@ conformance.
 
 ### Common Pitfalls
 
-1. **Signing the rumor.** Kind 15 and kind 16 events MUST NOT be signed. The
+1. **Signing the rumor.** Kind 1111 and kind 1112 events MUST NOT be signed. The
    `sig` field must be empty or absent. Signing the rumor eliminates
    deniability.
 
