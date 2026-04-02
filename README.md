@@ -42,12 +42,12 @@ Two independent implementations exist and have been tested for interoperability:
 
 | Implementation | Language | Location |
 |---------------|----------|----------|
-| Reference | TypeScript | `impl/reference/` |
-| Second | Go | `impl/second-go/` |
+| Reference | TypeScript | [nostr-mail-ts](https://github.com/luthen-seas/nostr-mail-ts) |
+| Second | Go | [nostr-mail-go](https://github.com/luthen-seas/nostr-mail-go) |
 
 ## Test Vectors
 
-Conformance test vectors are published at `impl/test-vectors/`:
+Conformance test vectors are published at `test-vectors/`:
 
 | File | Contents |
 |------|----------|
