@@ -22,7 +22,7 @@ The protocol introduces six event kinds:
 - **Kind 1401** -- Mail receipt (delivery/read confirmation, gift-wrapped)
 - **Kind 10050** -- DM relay list (existing, from NIP-17)
 - **Kind 10097** -- Spam policy (anti-spam configuration)
-- **Kind 10099** -- Mailbox state (read/flag/folder sync)
+- **Kind 30099** -- Mailbox state (read/flag/folder sync)
 - **Kind 30016** -- Mail draft (encrypted, addressable)
 
 ## How to Review
