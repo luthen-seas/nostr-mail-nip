@@ -71,14 +71,19 @@ This NIP depends on the following specifications:
 | [NIP-59](59.md) | Gift Wrap | Three-layer wrapping protocol |
 | [NIP-65](65.md) | Relay List Metadata | Outbox model relay discovery |
 | [NIP-94](94.md) | File Metadata | File metadata tag conventions |
-| [NIP-B7](b7.md) | Blossom | Decentralized file storage |
 
-Additionally, the anti-spam mechanism references:
+Additionally, the anti-spam and attachment mechanisms reference external
+specifications:
 
 | Specification | Usage |
 |---------------|-------|
 | [Cashu NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md) | Token format (V4) |
 | [Cashu NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md) | P2PK spending conditions |
+| [Blossom (BUD-01 through BUD-06)](https://github.com/hzrd149/blossom) | Decentralized file storage for attachments |
+
+Blossom is an external protocol, not a NIP. Clients that do not support
+Blossom MAY omit attachment functionality. The core mail protocol (sending,
+receiving, threading, anti-spam) does not depend on Blossom.
 
 ## Terminology
 
@@ -471,7 +476,9 @@ parent by any other message form single-message threads keyed by their own
 ### Attachments
 
 File attachments are stored externally on Blossom servers and referenced by
-SHA-256 hash in the rumor's tags.
+SHA-256 hash in the rumor's tags. Blossom is an external protocol and
+attachment support is OPTIONAL -- the core mail protocol (sending, receiving,
+threading, anti-spam) does not depend on it.
 
 #### Encryption
 
@@ -502,6 +509,13 @@ To retrieve an attachment:
 
 If all Blossom servers are unreachable, the client SHOULD display the message
 with the attachment shown as unavailable and offer a retry option.
+
+<!-- SPLIT: Core mail protocol (kinds 1400, 1401, encryption, threading,
+     recipients, attachments) above. Anti-spam (kind 10097, Cashu postage,
+     tier model) below. If reviewers request a split, everything above this
+     marker becomes the core NIP, and everything below through the Mailbox
+     State section becomes one or two separate NIPs. Each section defines
+     its own event kinds and can reference the others by NIP number. -->
 
 ### Anti-Spam
 
@@ -637,21 +651,28 @@ If no kind 10097 event is published, clients SHOULD use the following defaults:
 }
 ```
 
+<!-- SPLIT: Anti-spam (kind 10097, tier model, Cashu postage) above.
+     Mailbox state (kind 30099, CRDT merge, kind 30016 drafts) below.
+     These sections are self-contained and can be factored into a
+     separate NIP if the combined document is too large. -->
+
 ### Mailbox State (Kind 30099)
 
 A kind 30099 addressable event stores a partition of the user's mailbox state:
 which messages have been read, flagged, moved to folders, or deleted. State is
 partitioned by month using the `d` tag to prevent unbounded event growth.
 
-This event is encrypted to the user's own public key using NIP-44 and published
-to the user's relays.
+The state payload is serialized as a JSON object, encrypted with NIP-44 to the
+user's own public key, and stored in the `content` field. The only visible tag
+is the `d` tag, which carries the partition key. This ensures that relay
+operators cannot observe the user's read/flag/folder/deleted state.
 
 #### Partitioning
 
 State events are partitioned by the month in which the message was received.
 The `d` tag value MUST be in the format `YYYY-MM` (e.g., `"2026-04"`).
 
-When marking a message's state, the client MUST publish the state tag in the
+When marking a message's state, the client MUST publish the state in the
 partition corresponding to the month the message was first received. When
 loading mailbox state, the client MUST fetch all kind 30099 events for the
 user and merge them.
@@ -662,36 +683,62 @@ entries for messages the user has permanently deleted.
 
 #### Tags
 
+The only tag on a kind 30099 event is the `d` tag:
+
 | Tag | Format | Description |
 |-----|--------|-------------|
 | `d` | `["d", "<YYYY-MM>"]` | Partition key (required) |
-| `read` | `["read", "<message-id>"]` | Message marked as read |
-| `flag` | `["flag", "<message-id>", "<flag1>", "<flag2>", ...]` | Flags on a message |
-| `folder` | `["folder", "<message-id>", "<folder-name>"]` | Folder assignment |
-| `deleted` | `["deleted", "<message-id>"]` | Message marked as deleted |
 
-The identifier used in all state tags is the `message-id` tag value from the
-kind 1400 rumor. This is the stable identity shared across all recipients of
-the same message.
+All other state data is carried inside the encrypted `content` field.
 
-The `folder` tag places the message-id at index 1 and the folder name at
-index 2. This follows NOSTR convention where the primary indexed value comes
-first after the tag name.
+#### Encrypted Payload
+
+The `content` field contains a JSON object encrypted with NIP-44 using
+ECDH between the user's private key and their own public key (self-encryption).
+After decryption, the JSON object has the following schema:
+
+```json
+{
+  "read": ["<message-id>", ...],
+  "flag": {
+    "<message-id>": ["<flag1>", "<flag2>", ...],
+    ...
+  },
+  "folder": {
+    "<message-id>": "<folder-name>",
+    ...
+  },
+  "deleted": ["<message-id>", ...]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `read` | `string[]` | Array of message-id values for read messages (G-Set) |
+| `flag` | `Record<string, string[]>` | Map of message-id to flag name arrays |
+| `folder` | `Record<string, string>` | Map of message-id to folder name |
+| `deleted` | `string[]` | Array of message-id values for deleted messages (G-Set) |
+
+All identifiers are the `message-id` tag value from the kind 1400 rumor. This
+is the stable identity shared across all recipients of the same message.
+
+All four fields MUST be present in the payload, even if empty (use `[]` for
+empty arrays and `{}` for empty objects).
 
 Standard folder names: `"inbox"`, `"sent"`, `"drafts"`, `"archive"`, `"trash"`.
 Clients MAY support custom folder names.
 
 #### Read State (G-Set)
 
-The `read` tags form a Grow-only Set (G-Set) -- a CRDT that supports only
-additions, never removals. Once a message ID appears in a `read` tag, it MUST
-NOT be removed in any subsequent version of the kind 30099 event for that
+The `read` array is a Grow-only Set (G-Set) -- a CRDT that supports only
+additions, never removals. Once a message ID appears in the `read` array, it
+MUST NOT be removed in any subsequent version of the kind 30099 event for that
 partition. This ensures convergence across devices: any device marking a
 message as read propagates to all other devices on merge.
 
 Implementations MUST NOT provide a "mark as unread" operation that removes
 from the read set. If an "unread" UI state is desired, use a separate
-mechanism (e.g., a `"needs-attention"` flag).
+mechanism (e.g., a `"needs-attention"` flag in the `flag` map).
 
 #### Conflict Resolution
 
@@ -708,9 +755,9 @@ When a client has local state changes that have not been published and
 receives a remote state event newer than the last-published local state for
 the same partition, the client SHOULD merge using the following rules:
 
-- **`read`**: G-Set union (add all read markers from both local and remote).
-- **`deleted`**: G-Set union (add all deletion markers from both).
-- **`flag`**: Union of flag sets per message ID (keep all flags from both).
+- **`read`**: G-Set union (concatenate both arrays, deduplicate).
+- **`deleted`**: G-Set union (concatenate both arrays, deduplicate).
+- **`flag`**: Union of flag arrays per message ID (keep all flags from both).
 - **`folder`**: Last-write-wins. The remote state's folder assignments take
   precedence for any message ID present in both local and remote. Local-only
   folder assignments are preserved.
@@ -720,6 +767,8 @@ modified partition containing the merged state.
 
 #### Example: Mailbox State Event
 
+The outer event visible to relays:
+
 ```json
 {
   "id": "<event-id>",
@@ -727,15 +776,30 @@ modified partition containing the merged state.
   "created_at": 1711900000,
   "kind": 30099,
   "tags": [
-    ["d", "2026-04"],
-    ["read", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"],
-    ["read", "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1"],
-    ["flag", "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2", "starred"],
-    ["folder", "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1", "archive"],
-    ["deleted", "0011223344556677889900aabbccddeeff0011223344556677889900aabbccddeeff"]
+    ["d", "2026-04"]
   ],
-  "content": "",
+  "content": "<NIP-44 encrypted JSON payload>",
   "sig": "<signature>"
+}
+```
+
+The decrypted `content` payload (only the user can see this):
+
+```json
+{
+  "read": [
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1"
+  ],
+  "flag": {
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2": ["starred"]
+  },
+  "folder": {
+    "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7d8e9f0e1": "archive"
+  },
+  "deleted": [
+    "0011223344556677889900aabbccddeeff0011223344556677889900aabbccddeeff"
+  ]
 }
 ```
 
@@ -983,13 +1047,21 @@ attachments.
 
 ## Test Vectors
 
-Test vectors are published at:
+Conformance test vectors are published in the companion implementation
+repositories:
 
-- `impl/test-vectors/mail-event.json` -- Kind 1400 rumor creation vectors
-- `impl/test-vectors/gift-wrap.json` -- Seal and gift wrap structure vectors
-- `impl/test-vectors/spam-tier.json` -- Anti-spam tier evaluation vectors
-- `impl/test-vectors/thread.json` -- Threading and tree construction vectors
-- `impl/test-vectors/state.json` -- Mailbox state serialization vectors
+- [nostr-mail-ts/test-vectors/](https://github.com/luthen-seas/nostr-mail-ts/tree/main/test-vectors) -- TypeScript reference implementation
+- [nostr-mail-go/test-vectors/](https://github.com/luthen-seas/nostr-mail-go/tree/main/test-vectors) -- Go implementation
+
+Each repository contains the following vector files:
+
+| File | Contents |
+|------|----------|
+| `mail-event.json` | Kind 1400 rumor creation vectors |
+| `gift-wrap.json` | Seal and gift wrap structure vectors |
+| `spam-tier.json` | Anti-spam tier evaluation vectors |
+| `thread.json` | Threading and tree construction vectors |
+| `state.json` | Mailbox state serialization vectors |
 
 ### Test Keys
 
@@ -1282,8 +1354,8 @@ conformance.
 | M01 | Read state is append-only | markRead adds to reads set |
 | M02 | markRead is idempotent | Same ID twice yields same state |
 | M03 | Read state cannot be reverted | No operation removes from reads set |
-| M04 | State serializes to kind 30099 tags | Correct tag format with `d` partition, reads, flags, folders |
-| M05 | State deserializes from tags | Tag parsing round-trips correctly |
+| M04 | State serializes to kind 30099 event | `d` tag only, encrypted JSON payload in content |
+| M05 | State deserializes from encrypted payload | JSON parsing round-trips correctly |
 | M06 | Merge: G-Set union for reads | Merged reads is union of both sets |
 | M07 | Merge: flags from both states preserved | Union of flag arrays per event ID |
 
