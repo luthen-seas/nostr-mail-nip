@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-vectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate test vector JSON well-formedness
+        run: |
+          set -e
+          for f in test-vectors/*.json; do
+            echo "Checking $f"
+            jq -e . "$f" > /dev/null
+          done
+
+      - name: Verify required vector files present
+        run: |
+          set -e
+          for f in mail-event.json gift-wrap.json spam-tier.json state.json thread.json; do
+            test -f "test-vectors/$f" || (echo "Missing test-vectors/$f" && exit 1)
+          done
