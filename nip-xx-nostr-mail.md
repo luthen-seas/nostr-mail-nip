@@ -63,8 +63,9 @@ This NIP depends on the following specifications:
 | NIP | Name | Usage |
 |-----|------|-------|
 | [NIP-01](01.md) | Basic Protocol | Event structure, relay communication |
-| [NIP-05](05.md) | DNS Identifiers | Address resolution (user@domain.com to pubkey) |
-| [NIP-09](09.md) | Event Deletion | Requesting deletion of sent mail |
+| [NIP-02](02.md) | Follow List | Kind 3 contact list as the source for tier-0 anti-spam evaluation |
+| [NIP-05](05.md) | DNS Identifiers | Address resolution (user@domain.com to pubkey). NOT used as a trust signal. |
+| [NIP-09](09.md) | Event Deletion | Requesting deletion of sent mail (see "Deletion" section below) |
 | [NIP-17](17.md) | Private DMs | Base messaging model, kind 10050 relay list |
 | [NIP-42](42.md) | Authentication | Relay-enforced inbox access control |
 | [NIP-44](44.md) | Encrypted Payloads | Encryption at seal and wrap layers |
@@ -108,9 +109,12 @@ appear in capitalized form, as shown here.
 | 30016 | Mail Draft | Encrypted draft messages | Addressable (by `d` tag) |
 
 Kind 1400 and kind 1401 events are never published directly. They exist only as
-unsigned rumors inside NIP-59 gift wraps (kind 1059). Kind 10097, 30099, and
-30016 events are published as standard signed NOSTR events encrypted to the
-author's own public key.
+unsigned rumors inside NIP-59 gift wraps (kind 1059). Kind 30099 (mailbox state)
+and kind 30016 (drafts) are published as standard signed NOSTR events with their
+content NIP-44-encrypted to the author's own public key. Kind 10097 (spam
+policy) is published unencrypted so that potential senders can comply with the
+recipient's anti-spam policy before sending; it MUST NOT contain personally
+identifying or sensitive content.
 
 ### Mail Message (Kind 1400)
 
@@ -795,10 +799,10 @@ The decrypted `content` payload (only the user can see this):
     "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2": ["starred"]
   },
   "folder": {
-    "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7d8e9f0e1": "archive"
+    "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1": "archive"
   },
   "deleted": [
-    "0011223344556677889900aabbccddeeff0011223344556677889900aabbccddeeff"
+    "0011223344556677889900aabbccddeeff0011223344556677889900aabbccdd"
   ]
 }
 ```
@@ -813,8 +817,13 @@ message delivery or read status.
 | Tag | Format | Description |
 |-----|--------|-------------|
 | `p` | `["p", "<pubkey>"]` | Original sender's pubkey (receipt recipient) |
-| `e` | `["e", "<message-id>"]` | `message-id` of the acknowledged message |
+| `receipt-for` | `["receipt-for", "<message-id>"]` | The acknowledged message's `message-id` value (NOT a NIP-01 event-id) |
 | `status` | `["status", "<type>"]` | One of `"delivered"` or `"read"` |
+
+> The `receipt-for` tag is a domain-specific tag that carries the rumor's
+> `message-id` value. It deliberately does NOT reuse the NIP-01 `e` tag, since
+> NIP-01 reserves `e` for 32-byte event-id references; a `message-id` is a
+> separately-generated 32-byte CSPRNG identifier that lives inside the rumor.
 
 A `"delivered"` receipt indicates the message was received and decrypted. A
 `"read"` receipt indicates the user has viewed the message.
@@ -831,7 +840,7 @@ operation.
   "created_at": 1711850000,
   "tags": [
     ["p", "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748"],
-    ["e", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    ["receipt-for", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
     ["status", "read"]
   ],
   "content": "",
@@ -841,6 +850,24 @@ operation.
 
 This rumor is sealed and gift-wrapped to the original sender (Alice), who
 can then display a "read" indicator.
+
+### Deletion (NIP-09)
+
+The sender of a mail message MAY publish a kind 5 deletion event to request
+removal of a previously-published gift wrap. Because each recipient receives
+a distinct kind 1059 event (different ephemeral key, different event id),
+multi-recipient deletion requires one kind 5 event per recipient's gift
+wrap, each referencing the specific gift-wrap event-id in its `e` tag.
+
+Relays SHOULD honor deletion requests for gift wraps signed by the same
+ephemeral key that published the original wrap, but SHOULD NOT honor
+deletion requests targeting other recipients' wraps. Deletion of the
+recipient's locally-stored gift wrap is the recipient's prerogative;
+the sender's deletion request is advisory.
+
+The sender's self-copy is independently deletable by the sender via the
+same mechanism. Recipients MAY honor sender-initiated deletion of the
+message in their own UI but are not protocol-required to do so.
 
 ### Drafts (Kind 30016)
 
@@ -963,10 +990,12 @@ Relays that support NOSTR Mail SHOULD implement the following:
 - Relays SHOULD restrict access to kind 1059 events by requiring NIP-42
   AUTH and only serving them to the pubkey in the `p` tag. This prevents
   unauthorized parties from enumerating a user's encrypted mail.
-- Relays MAY rate-limit kind 1059 events per recipient pubkey. When
-  rate-limiting, relays SHOULD apply limits per sender-recipient pair (using
-  the gift wrap's `p` tag as recipient) to prevent a single spammer from
-  exhausting another user's rate limit quota.
+- Relays SHOULD implement per-recipient rate limiting for kind 1059 events.
+  RECOMMENDED default: 100 events per recipient pubkey per hour from
+  non-authenticated sources. Relays MAY exempt NIP-42-authenticated senders
+  from this limit. Per-sender rate limiting is ineffective in isolation
+  because gift wraps use ephemeral keys; per-recipient limiting is the
+  primary defense against the FINDING-003 / DEC-008 flooding vector.
 - Relays MAY require proof-of-work or L402 payment at their own discretion
   as a relay-level rate-limiting measure. This is independent of the client-
   side anti-spam tier model.
@@ -1204,6 +1233,19 @@ Bearer tokens (without P2PK) are vulnerable to front-running: a malicious
 relay or network observer could extract the token and redeem it before the
 intended recipient. P2PK ensures only the holder of the recipient's private
 key can spend the token.
+
+### Default-trusted Cashu mints
+
+By default, recipients accept Cashu tokens from any mint via an empty
+`accepted-mints` list in the kind 10097 spam policy. This relies on each
+accepted mint to honestly enforce P2PK spending conditions (NUT-11). A
+malicious mint can issue tokens that appear P2PK-locked but redeem freely
+on its own ledger, defeating the economic anti-spam barrier.
+
+Production deployments SHOULD configure an explicit `accepted-mints` list
+in their kind 10097 spam policy. Implementations MAY ship a curated default
+list of well-known mints; relying on the empty default is NOT RECOMMENDED
+for high-value mailboxes.
 
 ### Attachment Encryption
 

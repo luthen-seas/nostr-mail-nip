@@ -199,7 +199,7 @@
           ["cashu", "cashuBo2FteCJodHRwczovL21pbnQuZXhhbXBsZS5jb20iYXVjc2F0YXCBomFpSAAAAAAAAAABYXOBo2FhAWFzeEBlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1YWNYITAzYjQ2NjFiYzBmOTkzZjRiMmRlYjA0ZTZlZDM0MDBiMWNmODRlOGQxNDVhOTc1NGI="]
         ],
         "content": "Hi Bob, we met at the conference. Here's my contact info.",
-        "note": "The Cashu token is a P2PK (Pay-to-Public-Key) token locked to Bob's pubkey. Only Bob can redeem the 21 sats. The token is serialized in the standard Cashu V4 format. This qualifies as Tier 3 (PAID) in the anti-spam model since 21 >= 10 sat minimum."
+        "note": "The Cashu token is a P2PK (Pay-to-Public-Key) token locked to Bob's pubkey. Only Bob can redeem the 21 sats. The token is serialized in the standard Cashu V4 format. This qualifies as Tier 1 (PAID) in the anti-spam model since 21 >= 10 sat minimum."
       }
     },
     {
