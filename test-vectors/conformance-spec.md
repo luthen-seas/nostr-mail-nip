@@ -36,8 +36,8 @@
 | C06 | Gift wrap content decrypts with NIP-44 | ECDH(recipient, ephemeral) → valid seal JSON |
 | C07 | Gift wrap signature is valid | Schnorr signature verifies against ephemeral pubkey |
 | C08 | Round-trip: wrap(rumor) → unwrap → rumor matches | Content, tags, kind preserved through encrypt/decrypt cycle |
-| C09 | Seal timestamp is randomized | seal.created_at ≠ rumor.created_at (within ±2 days) |
-| C10 | Wrap timestamp is randomized | wrap.created_at ≠ seal.created_at (within ±2 days) |
+| C09 | Seal timestamp is randomized | seal.created_at is in [actual_unix_time - 172800, actual_unix_time + 172800] (CSPRNG uniform, inclusive). May coincide with rumor.created_at by chance. |
+| C10 | Wrap timestamp is randomized | wrap.created_at is in [actual_unix_time - 172800, actual_unix_time + 172800] (CSPRNG uniform, inclusive). Wrap and seal randomization are independent draws. |
 | C11 | Different ephemeral keys per recipient | Wrapping same rumor for 2 recipients → different wrap pubkeys |
 | C12 | Different ciphertext per wrap (random nonce) | Wrapping same rumor twice → different content |
 
@@ -60,8 +60,8 @@
 | M01 | Read state is a G-Set (append-only) | markRead → eventId added to reads set |
 | M02 | markRead is idempotent | markRead(same ID) twice → same state |
 | M03 | Read state cannot be reverted | No operation removes from reads set |
-| M04 | State serializes to kind 30099 tags with d-tag partition | `["d", "YYYY-MM"]`, `["read", messageId]`, `["flag", messageId, ...]`, `["folder", messageId, name]` |
-| M05 | State deserializes from tags | Parse tags → MailboxState matches |
+| M04 | State serializes to a kind 30099 event | `["d", "YYYY-MM"]` is the only visible tag. State payload (`{read[], flag{}, folder{}, deleted[]}` keyed by message-id) is JSON-serialized and NIP-44-encrypted to the user's own pubkey, stored in the event's `content` field. |
+| M05 | State deserializes from encrypted content | NIP-44 decrypt content with self conversation key → JSON parse → MailboxState matches |
 | M06 | State merge: G-Set union for reads | mergeStates: reads = union of both read sets |
 | M07 | State merge: both flags preserved | mergeStates: flags from both states included |
 

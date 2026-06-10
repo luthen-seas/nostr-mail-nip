@@ -57,7 +57,7 @@
       "description": "An unknown sender attaches a Cashu P2PK token worth 21 sats, locked to Bob's pubkey.",
       "input": {
         "sender_pubkey": "f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2",
-        "cashu_token": "cashuBo2FteCJodHRwczovL21pbnQuZXhhbXBsZS5jb20iYXVjc2F0YXCBomFpSAAAAAAAAAABYXOBo2FhAWFzeEBlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1YWNYITAzYjQ2NjFiYzBmOTkzZjRiMmRlYjA0ZTZlZDM0MDBiMWNmODRlOGQxNDVhOTc1NGI=",
+        "cashu_token": "cashuBo2FteBhodHRwczovL21pbnQuZXhhbXBsZS5jb21hdIGiYWlBAGFwgaNhYRVhY0Bhc3hWWyJQMlBLIix7ImRhdGEiOiIwMjk4YjMwZDViZmQxZTJlNzUxZDdhNTdlN2E1OGU2N2UxNWIzZjJlMGE5MGY5ZjdlOGU0MGY3ZjZlNWQ0YzNiMmEifV1hdWNzYXQ",
         "cashu_amount_sats": 21,
         "cashu_mint": "https://mint.example.com",
         "cashu_p2pk": true,
@@ -141,7 +141,7 @@
       "description": "Alice (in contacts) also attaches a Cashu token. Contact list is checked first, so the message is classified as Tier 0. The Cashu token SHOULD NOT be redeemed.",
       "input": {
         "sender_pubkey": "2c7cc62a697ea3a7826521f3fd34f0cb273693cbe5e9310f35449f43622a6748",
-        "cashu_token": "cashuBo2FteCJodHRwczovL21pbnQuZXhhbXBsZS5jb20iYXVjc2F0YXCBomFpSAAAAAAAAAABYXOBo2FhAWFzeEBlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1YWNYITAzYjQ2NjFiYzBmOTkzZjRiMmRlYjA0ZTZlZDM0MDBiMWNmODRlOGQxNDVhOTc1NGI=",
+        "cashu_token": "cashuBo2FteBhodHRwczovL21pbnQuZXhhbXBsZS5jb21hdIGiYWlBAGFwgaNhYRVhY0Bhc3hWWyJQMlBLIix7ImRhdGEiOiIwMjk4YjMwZDViZmQxZTJlNzUxZDdhNTdlN2E1OGU2N2UxNWIzZjJlMGE5MGY5ZjdlOGU0MGY3ZjZlNWQ0YzNiMmEifV1hdWNzYXQ",
         "cashu_amount_sats": 21,
         "cashu_mint": "https://mint.example.com",
         "cashu_p2pk": true,
